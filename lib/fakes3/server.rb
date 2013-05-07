@@ -341,6 +341,11 @@ module FakeS3
       headers = {'content-type' => [file['content-type']]}
       s_req.webrick_request = PostRequest.new(headers, file)
       s_req.type = Request::STORE
+      if s_req.is_path_style
+        path = webrick_req.path
+        path_len = path.size
+        s_req.bucket = path[1,path_len].split("/")
+      end
     end
 
     # This method takes a webrick request and generates a normalized FakeS3 request
