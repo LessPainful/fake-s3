@@ -280,8 +280,10 @@ module FakeS3
 
     # Remove chunk dividers
     def clean_chunk(chunk)
-      if chunk =~ /\A[\da-fA-F]+;chunk-signature=[\da-fA-F]+\r\n/
-        chunk.sub(/\A[\da-fA-F]+;chunk-signature=[\da-fA-F]+\r\n/, '').sub(/\r\n\Z/, '')
+      if chunk =~ /\A[[:alnum:]]+;chunk-signature=[[:alnum:]]+\r\n/
+        chunk
+          .sub(/\A[[:alnum:]]+;chunk-signature=[[:alnum:]]+\r\n/, '') # Initial signature line
+          .sub(/\r\n0;chunk-signature=[[:alnum:]]+\r\n\r\n\Z/, '') # Terminal signature line
       else
         chunk
       end
