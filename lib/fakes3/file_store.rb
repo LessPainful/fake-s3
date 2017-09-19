@@ -282,7 +282,7 @@ module FakeS3
     def clean_chunk(chunk)
       if chunk =~ /\A[[:alnum:]]+;chunk-signature=[[:alnum:]]+\r\n/
         chunk
-          .sub(/[[:alnum:]]+;chunk-signature=[[:alnum:]]+\r\n/, '') # Initial signature line
+          .gsub(/[[:alnum:]]+;chunk-signature=[[:alnum:]]+\r\n/, '') # Initial signature line
           .sub(/\r\n0;chunk-signature=[[:alnum:]]+\r\n\r\n\Z/, '') # Terminal signature line
       else
         chunk
