@@ -94,7 +94,7 @@ module FakeS3
         real_obj.custom_metadata = metadata.fetch(:custom_metadata) { {} }
         return real_obj
       rescue
-        puts $!
+        STDERR.puts $!
         $!.backtrace.each { |line| puts line }
         return nil
       end
@@ -164,6 +164,7 @@ module FakeS3
       match = content_type.match(/^multipart\/form-data; boundary=(.+)/)
       boundary = match[1] if match
       if boundary
+        STDERR.puts "bundary: #{bundary}"
         boundary  = WEBrick::HTTPUtils::dequote(boundary)
         form_data = WEBrick::HTTPUtils::parse_form_data(request.body, boundary)
 
@@ -172,11 +173,12 @@ module FakeS3
         end
 
         filedata = form_data['file']
-        filedata = clean_chunk(filedata)
       else
-        request.body { |chunk| filedata << clean_chunk(chunk) }
+        request.body { |chunk| 
+          filedata << chunk
+        }
       end
-
+      filedata = clean_chunk(filedata)
       do_store_object(bucket, object_name, filedata, request)
     end
 
@@ -230,10 +232,10 @@ module FakeS3
         etag = Digest::MD5.hexdigest(chunk)
 
         raise new Error "invalid file chunk" unless part[:etag] == etag
-        complete_file << clean_chunk(chunk)
+        complete_file << chunk
         part_paths    << part_path
       end
-
+      complete_file = clean_chunk(complete_file)
       object = do_store_object(bucket, object_name, complete_file, request)
 
       # clean up parts
@@ -276,16 +278,34 @@ module FakeS3
       return metadata
     end
 
-    private
-
     # Remove chunk dividers
-    def clean_chunk(chunk)
-      if chunk =~ /\A[[:alnum:]]+;chunk-signature=[[:alnum:]]+\r\n/
-        chunk
-          .gsub(/[[:alnum:]]+;chunk-signature=[[:alnum:]]+\r\n/, '') # Initial signature line
-          .sub(/\r\n0;chunk-signature=[[:alnum:]]+\r\n\r\n\Z/, '') # Terminal signature line
+    def clean_chunk(data)
+      regex = /\A([[:alnum:]]+);chunk-signature=[[:alnum:]]+\r\n/
+      match_data = regex.match(data)
+      if match_data
+        # STDERR.puts 'chunk detected'
+        clean_data = ''
+        while match_data
+          chunk_size = match_data[1].to_i(16)
+          #STDERR.puts "Chunk Size: #{chunk_size}"
+          match_size = match_data[0].size
+          # STDERR.puts "Match Size: #{match_size}"
+
+          chunk = data[match_size,chunk_size]
+          # STDERR.puts "chunk: #{chunk[0,10]}"
+          # STDERR.puts "chunk.size: #{chunk.size}"
+          clean_data << chunk
+
+          # also skip \r\n, thus +2
+          data = data[(match_size+chunk_size+2)..-1]
+          data = '' if data.nil?
+          # STDERR.puts "data: #{data[0,10]}..."
+ #         STDERR.puts "clean_data: #{clean_data}"
+          match_data = regex.match(data)
+        end
+        clean_data
       else
-        chunk
+        data
       end
     end
   end
